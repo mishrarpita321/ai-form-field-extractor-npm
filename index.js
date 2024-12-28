@@ -11,7 +11,7 @@ import { checkMissingDetails, checkSourceText, constructErrorMessage, displayErr
  * @param {string} [welcomeMsg] - A welcome message to display in the console or UI.
  * @returns {Object[]} An array of objects containing `id` and `value` of each input.
  */
-export async function fillForm(formId, apiKey, sourceText) {
+export async function fillFormByText(formId, apiKey, sourceText) {
     // let sourceText = "My name is John Doe, I am 30 years old, born on May 15, 1993. My email is john.doe@example.com, and I live in Germany."
     const formData = await extractFormIds(formId);
     checkSourceText(sourceText);

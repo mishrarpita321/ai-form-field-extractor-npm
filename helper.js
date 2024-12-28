@@ -146,13 +146,13 @@ export function displayErrorMessage(missingDetails) {
     if (hasErrors && missingFields.length) {
         toast.error(`Missing fields: ${missingFields.join(", ")}`, {
             position: "bottom-right",
-            autoClose: false,
+            theme: "light",
+            autoClose: 5000,
             hideProgressBar: false,
             closeOnClick: true,
             pauseOnHover: true,
             draggable: true,
             progress: undefined,
-            theme: "light",
         });
     } else {
         toast.success("All fields are filled successfully!", {
