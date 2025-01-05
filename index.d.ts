@@ -20,10 +20,13 @@ export declare function fillFormByText(
  * @param apiKey - The API key for accessing the voice recognition service.
  * @param welcomeMsg - The welcome message to be played when the form is ready to be filled.
  * @param ttsKey - The API key for the text-to-speech service.
+ * @param userPrompt - The custom prompt to llm.
+ * @param languageCode - The language code for the voice recognition service.
  */
 export declare function fillFormByVoice(
     formId: string,
     apiKey: string,
-    welcomeMsg: string,
-    ttsKey: string,
+    ttsKey?: string,
+    userPrompt?: string,
+    languageCode?: string,
 ): void;

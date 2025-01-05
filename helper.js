@@ -25,7 +25,6 @@ export async function extractFormIds(formId) {
         }
     });
 
-    console.log('Extracted Form Fields:', fieldData);
     return fieldData;
 }
 
@@ -45,55 +44,82 @@ export function checkSourceText(sourceText) {
  * Extracts form values from the provided source text using the OpenAI API.
  *
  * @param {string} apiKey - The API key for authentication with the OpenAI API.
- * @param {string} sourceText - The text from which to extract form values.
+ * @param {string} transcribedText - The text from which to extract form values.
  * @param {Array} formData - An array of form field objects, each containing an `id` property.
  * @returns {Promise<Object>} A promise that resolves to an object containing the extracted form values.
  * @throws Will throw an error if the API request fails.
  */
-export async function extractFormValues(apiKey, sourceText, formData) {
-    if (!apiKey) {
-        console.error("API key is required.");
-    }
+export async function extractFormValues(apiKey, transcribedText, formData, userPrompt) {
+    validateInputs(apiKey, transcribedText, formData);
 
-    if (!sourceText) {
-        console.error("Source text is required.");
+    const prompt = userPrompt || generatePrompt(formData);
+    const requestData = buildRequestData(transcribedText, prompt, formData);
+
+    try {
+        const response = await makeApiCall(apiKey, requestData);
+        return parseResponse(response);
+    } catch (error) {
+        console.error("Error extracting form values:", error);
+        throw error; // or return a standardized error object
     }
+}
+
+function validateInputs(apiKey, transcribedText, formData) {
+    if (!apiKey) throw new Error("API key is required.");
+    if (!transcribedText) throw new Error("Source text is required.");
+    if (!Array.isArray(formData) || formData.some(field => !field.id)) {
+        throw new Error("Invalid formData: Must be an array of objects with 'id' properties.");
+    }
+}
+
+function generatePrompt(formData) {
     const ids = formData.map(field => field.id).join(", ");
-    console.log(`Extracting the following keys from the provided text: ${ids}`);
-    const url = "https://api.openai.com/v1/chat/completions";
-    const requestData = {
+    return `Extract the following keys from the provided text: ${ids}. 
+        Ensure missing fields are returned as empty strings. Format dates as "YYYY-MM-DD", emails in lowercase 
+        with no spaces, and all text values starting with uppercase.`;
+}
+
+function buildRequestData(sourceText, prompt, formData) {
+    const ids = formData.map(field => field.id).join(", ");
+
+    return {
         model: "gpt-4o-mini",
         messages: [
             {
                 role: "system",
-                content: `You are a helpful assistant and you only reply with JSON. Extract only the following keys from the provided text: Required keys: ${ids}. Empty values for missing keys. Ensure all the extracted values are starting with uppercase. The date should be in the format of "YYYY-MM-DD". The email should be in lowercase with no spaces.`,
+                content: `You are a highly skilled data extraction assistant. Always respond in JSON format. Ensure missing fields are returned as empty strings. Extract the following keys ${ids} from the provided text.`,
             },
-            {
-                role: "user",
-                content: sourceText,
-            },
+            { role: "system", content: prompt },
+            { role: "user", content: sourceText },
         ],
-        response_format: {
-            type: "json_object",
-        },
-        temperature: 0.7
+        response_format: { type: "json_object" },
+        temperature: 0.7,
     };
+}
 
+async function makeApiCall(apiKey, requestData) {
+    const url = "https://api.openai.com/v1/chat/completions";
+    const response = await fetch(url, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(requestData),
+    });
+
+    if (!response.ok) {
+        throw new Error(`API call failed with status: ${response.status}`);
+    }
+
+    return response.json();
+}
+
+function parseResponse(data) {
     try {
-        const response = await fetch(url, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify(requestData),
-        });
-
-        const data = await response.json();
-        const completion = JSON.parse(data.choices[0].message.content);
-        return completion;
+        return JSON.parse(data.choices[0].message.content);
     } catch (error) {
-        console.error(error);
+        throw new Error("Failed to parse API response.");
     }
 }
 
@@ -108,24 +134,78 @@ export async function extractFormValues(apiKey, sourceText, formData) {
  */
 export async function checkMissingDetails(extractedJson, formData) {
     const missingFields = [];
-    let hasErrors = false; 
+    let hasErrors = false;
 
-    // Loop through formData to check missing fields and fill the form
     formData.forEach(field => {
-        const fieldId = field.id;
-        const fieldElement = document.getElementById(fieldId);
+        const fieldElement = document.getElementById(field.id);
 
-        if (!extractedJson[fieldId] || extractedJson[fieldId].trim() === "") {
-            missingFields.push(fieldId);
-            hasErrors = true; 
-            fieldElement.style.border = "2px solid red";
-        } else if (fieldElement) {
-            fieldElement.style.border = "";
-            fieldElement.value = extractedJson[fieldId];
+        if (!fieldElement) {
+            console.warn(`Field with ID "${field.id}" not found.`);
+            return;
+        }
+
+        const inputType = fieldElement.type;
+        const fieldName = fieldElement.name;
+
+        switch (inputType) {
+            case "radio":
+                // Handle radio buttons
+                const radioGroup = document.getElementsByName(fieldName);
+                let isRadioFilled = false;
+
+                radioGroup.forEach(radio => {
+                    if (radio.value === extractedJson[fieldName]) {
+                        radio.checked = true;
+                        isRadioFilled = true;
+                    }
+                });
+
+                if (!isRadioFilled) {
+                    missingFields.push(fieldName);
+                    hasErrors = true;
+                    radioGroup.forEach(radio => (radio.style.border = "2px solid red"));
+                } else {
+                    radioGroup.forEach(radio => (radio.style.border = ""));
+                }
+                break;
+
+            case "checkbox":
+                // Handle checkboxes
+                const checkboxes = document.querySelectorAll(`input[name="${fieldName}"][type="checkbox"]`);
+                let isCheckboxFilled = false;
+
+                checkboxes.forEach(checkbox => {
+                    if (extractedJson[fieldName]?.includes(checkbox.value)) {
+                        checkbox.checked = true;
+                        isCheckboxFilled = true;
+                    }
+                });
+
+                if (!isCheckboxFilled) {
+                    missingFields.push(fieldName);
+                    hasErrors = true;
+                    checkboxes.forEach(checkbox => (checkbox.style.border = "2px solid red"));
+                } else {
+                    checkboxes.forEach(checkbox => (checkbox.style.border = ""));
+                }
+                break;
+
+            default:
+                // Handle text, select, textarea, etc.
+                const value = extractedJson[field.id] || "";
+                if (value.trim()) {
+                    fieldElement.value = value;
+                    fieldElement.style.border = "";
+                } else {
+                    missingFields.push(field.id);
+                    hasErrors = true;
+                    fieldElement.style.border = "2px solid red";
+                }
+                break;
         }
     });
 
-    console.log("missingFields", missingFields);
+    console.log("Missing fields:", missingFields);
     if (missingFields.length) {
         console.error(`Missing fields: ${missingFields.join(", ")}`);
     }
@@ -168,7 +248,7 @@ export function displayErrorMessage(missingDetails) {
     }
 }
 
-export async function speakMessage(text, ttsKey) {
+export async function speakMessage(text, ttsKey, languageCode="en") {
     const endpoint = `https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=${ttsKey}`;
     const payload = {
         audioConfig: {
@@ -179,8 +259,8 @@ export async function speakMessage(text, ttsKey) {
         },
         input: { text },
         voice: {
-            languageCode: "en-US",
-            name: "en-US-Journey-F",
+            languageCode: languageCode === "en" ? "en-US" : "de-DE",
+            name: languageCode === "en" ? "en-US-Journey-F" : "de-DE-Standard-F",
         },
     };
 
@@ -221,7 +301,7 @@ export async function speakMessage(text, ttsKey) {
     }
 }
 
-export async function listenForSpeech() {
+export async function listenForSpeech(languageCode) {
     return new Promise((resolve, reject) => {
         // Check if the browser supports the Web Speech API
         if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -234,7 +314,7 @@ export async function listenForSpeech() {
         const recognition = new SpeechRecognition();
 
         // Configure the SpeechRecognition object
-        recognition.lang = 'en-US';
+        recognition.lang = languageCode === 'en' ? 'en-US' : 'de-DE';
         recognition.interimResults = false;
         recognition.maxAlternatives = 1;
 
@@ -264,14 +344,58 @@ export async function listenForSpeech() {
 
 export function mergeWithExistingData(formData, extractedJson) {
     const mergedJson = {};
+
     formData.forEach(field => {
-        const fieldId = field.id;
-        // Retain existing value if it exists; otherwise, use the new value
-        mergedJson[fieldId] = extractedJson[fieldId] || document.getElementById(fieldId)?.value || "";
+        const inputElement = document.getElementById(field.id);
+
+        if (!inputElement) {
+            console.warn(`Input element with ID "${field.id}" not found.`);
+            return;
+        }
+
+        const inputType = inputElement.type;
+
+        switch (inputType) {
+            case "radio":
+                // Handle radio group
+                const radioGroup = document.getElementsByName(inputElement.name);
+                let selectedRadio = "";
+                if (extractedJson[field.id]) {
+                    selectedRadio = extractedJson[field.id];
+                } else {
+                    radioGroup.forEach(radio => {
+                        if (radio.checked) selectedRadio = radio.value;
+                    });
+                }
+                mergedJson[inputElement.name] = selectedRadio;
+                break;
+
+            case "checkbox":
+                // Handle checkboxes (grouped or single)
+                const checkboxes = document.querySelectorAll(`input[name="${inputElement.name}"][type="checkbox"]`);
+                let selectedCheckboxes = [];
+                if (extractedJson[field.id]) {
+                    selectedCheckboxes = extractedJson[field.id];
+                } else {
+                    checkboxes.forEach(checkbox => {
+                        if (checkbox.checked) selectedCheckboxes.push(checkbox.value);
+                    });
+                }
+                mergedJson[inputElement.name] = selectedCheckboxes;
+                break;
+
+            default:
+                // Handle text, date, email, select, etc.
+                mergedJson[field.id] = extractedJson[field.id] || inputElement.value || "";
+                break;
+        }
     });
+
     return mergedJson;
 }
 
-export function constructErrorMessage(missingFields) {
-    return `The following fields are missing or incorrect: ${missingFields.join(", ")}. Please provide the missing details.`;
+
+export function constructErrorMessage(languageCode) {
+    const message = languageCode === "en" ? "The highlighted fields are missing. Please provide the missing details." : "Die markierten Felder fehlen. Bitte geben Sie die fehlenden Details an.";
+    return message;
 }

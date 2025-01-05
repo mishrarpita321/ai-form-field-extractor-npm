@@ -21,30 +21,40 @@ export async function fillFormByText(formId, apiKey, sourceText) {
     return extractedJson;
 }
 
-export async function fillFormByVoice(formId, apiKey, welcomeMsg, ttsKey) {
+export async function fillFormByVoice(formId, apiKey, ttsKey, userPrompt, languageCode = "en") {
     const formData = await extractFormIds(formId);
-    await speakMessage(welcomeMsg, ttsKey);
+    console.log("Form data:", formData);
+    console.log("languageCode:", languageCode);
+    const welcomeMsg = languageCode === "en" ? "Please provide the following details by speaking into the microphone." : "Bitte geben Sie die folgenden Angaben ein, indem Sie in das Mikrofon sprechen.";
+    await speakMessage(welcomeMsg, ttsKey, languageCode);
 
     while (true) {
         try {
-            const sourceText = await listenForSpeech();
-            const extractedJson = await extractFormValues(apiKey, sourceText, formData); // Extract values from speech
+            const transcribedText = await listenForSpeech(languageCode);
+            console.log("Transcribed text:", transcribedText);
+
+            const extractedJson = await extractFormValues(apiKey, transcribedText, formData, userPrompt); // Extract values from speech
+            console.log("Extracted JSON:", extractedJson);
+
             const mergedJson = mergeWithExistingData(formData, extractedJson);
+            console.log("Merged JSON:", mergedJson);
+
             const missingDetails = await checkMissingDetails(mergedJson, formData); // Check missing fields
 
             if (!missingDetails.hasErrors) {
-                await speakMessage("Thank you for providing the information!", ttsKey);
+                const successMsg = languageCode === "en" ? "Thank you for providing the information. Please confirm if the details are correct, you can edit any incorrect details and submit the form by clicking on the submit button." : "Vielen Dank für die Bereitstellung der Informationen. Bitte bestätigen Sie, ob die Angaben korrekt sind. Sie können falsche Angaben bearbeiten und das Formular absenden, indem Sie auf die Schaltfläche 'Absenden' klicken.";
+                await speakMessage(successMsg, ttsKey, languageCode);
                 return mergedJson;
             }
 
             // Inform user about missing fields
-            const errorMsg = constructErrorMessage(missingDetails.missingFields);
+            const errorMsg = constructErrorMessage(languageCode);
             displayErrorMessage(missingDetails);
-            await speakMessage(errorMsg, ttsKey);
+            await speakMessage(errorMsg, ttsKey, languageCode); // Speak error message
         } catch (error) {
             console.error("Error in listening or processing:", error.message);
-            const retryMsg = "There was an error processing your speech. Please try again.";
-            await speakMessage(retryMsg, ttsKey); // Inform user to retry
+            const retryMsg = languageCode === "en" ? "Sorry, I didn't get that. Please try again." : "Entschuldigung, das habe ich nicht verstanden. Bitte versuchen Sie es erneut.";
+            await speakMessage(retryMsg, ttsKey, languageCode); // Inform user to retry
         }
     }
 }

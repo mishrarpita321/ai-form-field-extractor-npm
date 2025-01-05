@@ -61,8 +61,10 @@ fillFormByVoice(formId: string, apiKey: string, welcomeMsg: string, ttsKey: stri
 #### Parameters:
 - **formId** *(string)*: ID of the form element to be filled.
 - **apiKey** *(string)*: Your OpenAI API key for GPT-4o-mini.
-- **welcomeMsg** *(string)*: A welcome message played when the form is ready for interaction.
 - **ttsKey** *(string)*: Your Google Text-to-Speech API key.
+- **languageCode** *(string)(optional)*: The language code for voice recognition and TTS (e.g., 'en' for English, 'de' for German). Defaults to 'en'.
+- **userPrompt** *(string)(optional)*: A custom LLM prompt for refining extracted data.
+
 
 #### Example:
 ```javascript
@@ -70,10 +72,11 @@ import { fillFormByVoice } from 'fillform-voice-text';
 
 const formId = "user-form";
 const apiKey = "your_openai_api_key";
-const welcomeMsg = "Welcome to the voice-based form-filling process.";
 const ttsKey = "your_google_tts_api_key";
+const languageCode = "en"
+const userPrompt = "Extract user-specific details"
 
-await fillFormByVoice(formId, apiKey, welcomeMsg, ttsKey);
+await fillFormByVoice(formId, apiKey, ttsKey, userPrompt, languageCode);
 ```
 
 ---
