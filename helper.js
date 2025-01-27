@@ -43,20 +43,19 @@ export function checkSourceText(sourceText) {
 /**
  * Extracts form values from the provided source text using the OpenAI API.
  *
- * @param {string} apiKey - The API key for authentication with the OpenAI API.
  * @param {string} transcribedText - The text from which to extract form values.
  * @param {Array} formData - An array of form field objects, each containing an `id` property.
  * @returns {Promise<Object>} A promise that resolves to an object containing the extracted form values.
  * @throws Will throw an error if the API request fails.
  */
-export async function extractFormValues(apiKey, transcribedText, formData, userPrompt) {
-    validateInputs(apiKey, transcribedText, formData);
+export async function extractFormValues(transcribedText, formData, userPrompt) {
+    validateInputs(transcribedText, formData);
 
     const prompt = userPrompt || generatePrompt(formData);
     const requestData = buildRequestData(transcribedText, prompt, formData);
 
     try {
-        const response = await makeApiCall(apiKey, requestData);
+        const response = await makeApiCall(requestData);
         return parseResponse(response);
     } catch (error) {
         console.error("Error extracting form values:", error);
@@ -64,8 +63,7 @@ export async function extractFormValues(apiKey, transcribedText, formData, userP
     }
 }
 
-function validateInputs(apiKey, transcribedText, formData) {
-    if (!apiKey) throw new Error("API key is required.");
+function validateInputs(transcribedText, formData) {
     if (!transcribedText) throw new Error("Source text is required.");
     if (!Array.isArray(formData) || formData.some(field => !field.id)) {
         throw new Error("Invalid formData: Must be an array of objects with 'id' properties.");
@@ -97,22 +95,25 @@ function buildRequestData(sourceText, prompt, formData) {
     };
 }
 
-async function makeApiCall(apiKey, requestData) {
-    const url = "https://api.openai.com/v1/chat/completions";
-    const response = await fetch(url, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(requestData),
-    });
+async function makeApiCall(requestData) {
+    try {
+        const response = await fetch('http://localhost:3000/makeApiCall', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ requestData }),
+        });
 
-    if (!response.ok) {
-        throw new Error(`API call failed with status: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`Chat API call failed with status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error('Error calling Chat API:', error);
     }
-
-    return response.json();
 }
 
 function parseResponse(data) {
@@ -248,8 +249,8 @@ export function displayErrorMessage(missingDetails) {
     }
 }
 
-export async function speakMessage(text, ttsKey, languageCode="en") {
-    const endpoint = `https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=${ttsKey}`;
+export async function speakMessage(text, languageCode = "en") {
+    const t2sEndPoint = `http://localhost:3000/makeTextToSpeechCall`;
     const payload = {
         audioConfig: {
             audioEncoding: "MP3",
@@ -265,7 +266,8 @@ export async function speakMessage(text, ttsKey, languageCode="en") {
     };
 
     try {
-        const response = await fetch(endpoint, {
+        // const response = await fetch(endpoint, {
+        const response = await fetch(t2sEndPoint, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -278,6 +280,7 @@ export async function speakMessage(text, ttsKey, languageCode="en") {
         }
 
         const data = await response.json();
+        console.log("TTS API response:", data);
         if (!data.audioContent) {
             throw new Error("No audio content received from the API.");
         }
@@ -373,12 +376,12 @@ export function mergeWithExistingData(formData, extractedJson) {
             case "checkbox":
                 // Handle checkboxes (grouped or single)
                 const checkboxes = document.querySelectorAll(`input[name="${inputElement.name}"][type="checkbox"]`);
-                let selectedCheckboxes = [];
+                let selectedCheckboxes = "";
                 if (extractedJson[field.id]) {
                     selectedCheckboxes = extractedJson[field.id];
                 } else {
                     checkboxes.forEach(checkbox => {
-                        if (checkbox.checked) selectedCheckboxes.push(checkbox.value);
+                        if (checkbox.checked) selectedCheckboxes = checkbox.value;
                     });
                 }
                 mergedJson[inputElement.name] = selectedCheckboxes;
@@ -394,8 +397,13 @@ export function mergeWithExistingData(formData, extractedJson) {
     return mergedJson;
 }
 
-
-export function constructErrorMessage(languageCode) {
-    const message = languageCode === "en" ? "The highlighted fields are missing. Please provide the missing details." : "Die markierten Felder fehlen. Bitte geben Sie die fehlenden Details an.";
+export function constructErrorMessage(languageCode, missingDetails) {
+    const uniqueMissingDetails = [...new Set(missingDetails)];
+    const missingFieldsList = uniqueMissingDetails.join(", ");
+    console.log("missingFieldsList", missingFieldsList);
+    const message = languageCode === "en"
+        ? `Please provide the missing details for the following fields: ${missingFieldsList}.`
+        : `Die markierten Felder fehlen: ${missingFieldsList}. Bitte geben Sie die fehlenden Details an.`;
+    console.log("message", message);
     return message;
 }

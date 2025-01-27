@@ -4,57 +4,99 @@ import { checkMissingDetails, checkSourceText, constructErrorMessage, displayErr
  * Extracts input IDs and their corresponding values from a given form,
  * populates them with predefined values, and performs additional setup.
  *
- * @param {string} apiKey - The API key for authentication.
  * @param {string} formId - The ID of the form element to extract fields from.
  * @param {string} sourceText - A descriptive text for the source.
  * @param {string} [errorTestId] - (Optional) A test ID for error messages or validation.
  * @param {string} [welcomeMsg] - A welcome message to display in the console or UI.
  * @returns {Object[]} An array of objects containing `id` and `value` of each input.
  */
-export async function fillFormByText(formId, apiKey, sourceText) {
+export async function fillFormByText(formId, sourceText) {
     // let sourceText = "My name is John Doe, I am 30 years old, born on May 15, 1993. My email is john.doe@example.com, and I live in Germany."
     const formData = await extractFormIds(formId);
     checkSourceText(sourceText);
-    const extractedJson = await extractFormValues(apiKey, sourceText, formData);
+
+    const startExtraction = performance.now();
+    const extractedJson = await extractFormValues(sourceText, formData);
+    const endExtraction = performance.now();
+    console.log("Extraction time:", endExtraction - startExtraction, "ms");
+
+    const startformFilling = performance.now();
     const missingDetails = await checkMissingDetails(extractedJson, formData);
+    const endformFilling = performance.now();
+    console.log("Form filling time:", endformFilling - startformFilling, "ms");
+
     displayErrorMessage(missingDetails);
     return extractedJson;
 }
 
-export async function fillFormByVoice(formId, apiKey, ttsKey, userPrompt, languageCode = "en") {
+export async function fillFormByVoice(
+    formId,
+    userPrompt,
+    languageCode = "en",
+    statusCallback = () => { } // Callback to update the status
+) {
     const formData = await extractFormIds(formId);
-    console.log("Form data:", formData);
-    console.log("languageCode:", languageCode);
-    const welcomeMsg = languageCode === "en" ? "Please provide the following details by speaking into the microphone." : "Bitte geben Sie die folgenden Angaben ein, indem Sie in das Mikrofon sprechen.";
-    await speakMessage(welcomeMsg, ttsKey, languageCode);
 
-    while (true) {
-        try {
-            const transcribedText = await listenForSpeech(languageCode);
-            console.log("Transcribed text:", transcribedText);
+    const welcomeMsg =
+        languageCode === "en"
+            ? "Please provide the following details by speaking into the microphone."
+            : "Bitte geben Sie die folgenden Angaben ein, indem Sie in das Mikrofon sprechen.";
 
-            const extractedJson = await extractFormValues(apiKey, transcribedText, formData, userPrompt); // Extract values from speech
-            console.log("Extracted JSON:", extractedJson);
+    try {
+        // TTS: Playing Welcome Message
+        statusCallback({ isPlaying: true, isRecording: false });
+        await speakMessage(welcomeMsg, languageCode);
+        statusCallback({ isPlaying: false, isRecording: false });
 
-            const mergedJson = mergeWithExistingData(formData, extractedJson);
-            console.log("Merged JSON:", mergedJson);
+        while (true) {
+            try {
+                // Voice Recognition: Start Listening
+                statusCallback({ isPlaying: false, isRecording: true });
+                const transcribedText = await listenForSpeech(languageCode);
+                statusCallback({ isPlaying: false, isRecording: false });
 
-            const missingDetails = await checkMissingDetails(mergedJson, formData); // Check missing fields
+                // Extract Form Values from Transcribed Text
+                const extractedJson = await extractFormValues(transcribedText, formData, userPrompt);
+                const mergedJson = mergeWithExistingData(formData, extractedJson);
 
-            if (!missingDetails.hasErrors) {
-                const successMsg = languageCode === "en" ? "Thank you for providing the information. Please confirm if the details are correct, you can edit any incorrect details and submit the form by clicking on the submit button." : "Vielen Dank für die Bereitstellung der Informationen. Bitte bestätigen Sie, ob die Angaben korrekt sind. Sie können falsche Angaben bearbeiten und das Formular absenden, indem Sie auf die Schaltfläche 'Absenden' klicken.";
-                await speakMessage(successMsg, ttsKey, languageCode);
-                return mergedJson;
+                // Check for Missing Fields
+                const missingDetails = await checkMissingDetails(mergedJson, formData);
+
+                if (!missingDetails.hasErrors) {
+                    // TTS: Success Message
+                    const successMsg =
+                        languageCode === "en"
+                            ? "Thank you for providing the information. Please confirm if the details are correct..."
+                            : "Vielen Dank für die Bereitstellung der Informationen...";
+                    statusCallback({ isPlaying: true, isRecording: false });
+                    await speakMessage(successMsg, languageCode);
+                    statusCallback({ isPlaying: false, isRecording: false });
+
+                    return mergedJson; // End process if successful
+                }
+
+                // TTS: Error Message
+                const errorMsg = constructErrorMessage(languageCode, missingDetails.missingFields);
+                displayErrorMessage(missingDetails);
+                statusCallback({ isPlaying: true, isRecording: false });
+                await speakMessage(errorMsg, languageCode);
+                statusCallback({ isPlaying: false, isRecording: false });
+            } catch (error) {
+                console.error("Error in listening or processing:", error.message);
+
+                // TTS: Retry Message
+                const retryMsg =
+                    languageCode === "en"
+                        ? "Sorry, I didn't get that. Please try again."
+                        : "Entschuldigung, das habe ich nicht verstanden. Bitte versuchen Sie es erneut.";
+                statusCallback({ isPlaying: true, isRecording: false });
+                await speakMessage(retryMsg, languageCode);
+                statusCallback({ isPlaying: false, isRecording: false });
             }
-
-            // Inform user about missing fields
-            const errorMsg = constructErrorMessage(languageCode);
-            displayErrorMessage(missingDetails);
-            await speakMessage(errorMsg, ttsKey, languageCode); // Speak error message
-        } catch (error) {
-            console.error("Error in listening or processing:", error.message);
-            const retryMsg = languageCode === "en" ? "Sorry, I didn't get that. Please try again." : "Entschuldigung, das habe ich nicht verstanden. Bitte versuchen Sie es erneut.";
-            await speakMessage(retryMsg, ttsKey, languageCode); // Inform user to retry
         }
+    } catch (error) {
+        console.error("Error in TTS or Voice Interaction:", error.message);
+        statusCallback({ isPlaying: false, isRecording: false });
+        throw error; // Ensure proper error propagation
     }
 }

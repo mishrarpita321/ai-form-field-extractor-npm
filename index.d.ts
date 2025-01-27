@@ -9,7 +9,6 @@
  */
 export declare function fillFormByText(
     formId: string,
-    apiKey: string,
     sourceText: string,
 ): { id: string; value: string }[];
 
@@ -17,16 +16,13 @@ export declare function fillFormByText(
  * Fills a form using voice commands.
  *
  * @param formId - The ID of the form to be filled.
- * @param apiKey - The API key for accessing the voice recognition service.
- * @param welcomeMsg - The welcome message to be played when the form is ready to be filled.
- * @param ttsKey - The API key for the text-to-speech service.
  * @param userPrompt - The custom prompt to llm.
  * @param languageCode - The language code for the voice recognition service.
+ * @param statusCallback - A callback function to receive status updates.
  */
 export declare function fillFormByVoice(
     formId: string,
-    apiKey: string,
-    ttsKey?: string,
     userPrompt?: string,
     languageCode?: string,
-): void;
+    statusCallback?: (status: { isPlaying: boolean; isRecording: boolean }) => void // Optional callback for status updates
+): Promise<void>;
