@@ -97,7 +97,7 @@ function buildRequestData(sourceText, prompt, formData) {
 
 async function makeApiCall(requestData) {
     try {
-        const response = await fetch('http://localhost:3000/makeApiCall', {
+        const response = await fetch('https://data-fetching-proxy-ai.vercel.app/makeApiCall', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -250,7 +250,7 @@ export function displayErrorMessage(missingDetails) {
 }
 
 export async function speakMessage(text, languageCode = "en") {
-    const t2sEndPoint = `http://localhost:3000/makeTextToSpeechCall`;
+    const t2sEndPoint = `https://data-fetching-proxy-ai.vercel.app/makeTextToSpeechCall`;
     const payload = {
         audioConfig: {
             audioEncoding: "MP3",
