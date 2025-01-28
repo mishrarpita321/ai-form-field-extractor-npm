@@ -1,6 +1,6 @@
 # Form Field Extractor
 
-The **Form Field Extractor** is a utility library designed to extract, validate, and fill form fields using text input, voice commands, or API-based data extraction. It leverages AI to parse input text and populate form fields accurately, ensuring a seamless user experience for developers and end-users alike.
+The **Form Field Extractor** is a utility package designed to extract, validate, and fill form fields using text input, voice commands, or API-based data extraction. It leverages AI to parse input text and populate form fields accurately, ensuring a seamless user experience for developers and end-users alike.
 
 ## Features
 
@@ -18,6 +18,12 @@ You can install the package via npm:
 
 ```bash
 npm install form-field-extractor
+```
+
+Or include it directly from the `.tgz` files in this repository:
+
+```bash
+npm install ./form-field-extractor-1.0.2.tgz
 ```
 
 ## Usage
@@ -67,4 +73,51 @@ Extracts and populates form fields based on the provided text.
 
 - **Parameters**:
   - `formId`: The ID of the form element.
-  - `sourceText`: The
+  - `sourceText`: The input text containing field data.
+- **Returns**: An array of extracted form field objects.
+
+### `fillFormByVoice(formId: string, userPrompt?: string, languageCode?: string, statusCallback?: (status: { isPlaying: boolean; isRecording: boolean }) => void)`
+
+Populates form fields via voice input.
+
+- **Parameters**:
+  - `formId`: The ID of the form to be filled.
+  - `userPrompt`: A custom prompt for voice input.
+  - `languageCode`: Language for speech recognition (`en` or `de`).
+  - `statusCallback`: Callback to receive status updates of the mircrophone to add sound waves in the frontend.
+- **Returns**: A promise resolving to the merged form data.
+
+## Dependencies
+
+- `react-toastify` for notifications.
+
+## File Structure
+
+```
+├── helper.js          # Core logic for form field extraction and validation
+├── index.js           # Entry point for text and voice-based form population
+├── index.d.ts         # TypeScript definitions for exported methods
+├── package.json       # Package metadata and dependencies
+├── .npmignore         # Ignored files for npm packaging
+├── form-field-extractor-1.0.1.tgz
+└── form-field-extractor-1.0.2.tgz
+```
+
+## Development
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-repo/form-field-extractor.git
+   cd form-field-extractor
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Run your project or make changes.
+
+## License
+
+This project is licensed under the ISC License.
