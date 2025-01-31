@@ -81,11 +81,11 @@ Extracts and populates form fields based on the provided text.
 Populates form fields via voice input.
 
 - **Parameters**:
-  - `formId`: The ID of the form to be filled.
-  - `userPrompt`: A custom prompt for voice input.
-  - `languageCode`: Language for speech recognition (`en` or `de`).
-  - `statusCallback`: Callback to receive status updates of the mircrophone to add sound waves in the frontend.
-- **Returns**: A promise resolving to the merged form data.
+  - `formId`: The ID of the form to be filled. This is a mandatory parameter.
+  - `userPrompt`: A natural language custom prompt for LLM to generated customised and refined response. This is an optional parameter. Example: "Email should be in upper case"
+  - `languageCode`: Language for speech recognition (`en` or `de`). This is an optional parameter. Defaulted to en.
+  - `statusCallback`: Callback to receive status updates of the mircrophone to add sound waves in the frontend.This is an optional parameter
+- **Returns**: A JSON with form data.
 
 ## Dependencies
 
